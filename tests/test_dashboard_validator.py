@@ -33,6 +33,38 @@ def test_repository_dashboard_contract_is_valid() -> None:
     assert "6/6 panel" in result.stdout
 
 
+def test_retrieval_success_uses_success_and_failure_events() -> None:
+    payload = yaml.safe_load(
+        (REPO_ROOT / "config" / "dashboard.yaml").read_text(encoding="utf-8")
+    )
+    errors_panel = next(
+        panel for panel in payload["dashboard"]["panels"] if panel["id"] == "errors"
+    )
+
+    assert "response_sent" in errors_panel["events"]
+    assert "request_failed" in errors_panel["events"]
+    assert "tool_success == true" in errors_panel["query"]
+    assert "tool_success != null" in errors_panel["query"]
+
+
+def test_slo_and_alert_rules_are_concrete() -> None:
+    slo = yaml.safe_load((REPO_ROOT / "config" / "slo.yaml").read_text(encoding="utf-8"))
+    alerts = yaml.safe_load(
+        (REPO_ROOT / "config" / "alert_rules.yaml").read_text(encoding="utf-8")
+    )["alerts"]
+
+    assert slo["primary_slo"]["target_percent"] == 99.5
+    assert slo["primary_slo"]["error_budget_example_allowed"] == 50
+    assert len(alerts) == 3
+    for alert in alerts:
+        assert alert["type"] == "symptom-based"
+        assert alert["condition"] != "TODO"
+        assert alert["duration"]
+        assert alert["owner"]
+        assert alert["channel"].startswith("#")
+        assert "TODO" not in alert["name"]
+
+
 def test_validator_rejects_panel_without_threshold(tmp_path: Path) -> None:
     payload = yaml.safe_load(
         (REPO_ROOT / "config" / "dashboard.yaml").read_text(encoding="utf-8")
